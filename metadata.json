@@ -1,0 +1,5 @@
+{
+  "name": "SOT FC Team Shuffler",
+  "description": "A team shuffler application for Soccer On Turf (SOT) FC, allowing users to manage players and randomly assign them to teams.",
+  "requestFramePermissions": []
+}

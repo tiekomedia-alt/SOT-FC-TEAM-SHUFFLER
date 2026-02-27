@@ -34,13 +34,32 @@ function splitIntoTeams(players: string[], n: number) {
   return teams;
 }
 
-const TC = [
+const BASE_TC = [
   { name: "Team A", bg: ROYAL_BLUE, accent: "#60A5FA", badge: "🔵", strip: "#2563EB" },
   { name: "Team B", bg: "#991B1B", accent: "#F87171", badge: "🔴", strip: CRIMSON },
   { name: "Team C", bg: "#065F46", accent: "#34D399", badge: "🟢", strip: "#059669" },
   { name: "Team D", bg: "#92400E", accent: "#FBBF24", badge: "🟡", strip: "#D97706" },
   { name: "Team E", bg: "#581C87", accent: "#C084FC", badge: "🟣", strip: "#7C3AED" },
 ];
+
+const EXTRA_COLORS = [
+  { bg: "#164E63", accent: "#22D3EE", badge: "🩵", strip: "#0891B2" },
+  { bg: "#713F12", accent: "#FACC15", badge: "🟠", strip: "#CA8A04" },
+  { bg: "#831843", accent: "#F472B6", badge: "🩷", strip: "#DB2777" },
+  { bg: "#1E3A5F", accent: "#7DD3FC", badge: "🔷", strip: "#0284C7" },
+  { bg: "#365314", accent: "#A3E635", badge: "💚", strip: "#65A30D" },
+  { bg: "#4A1D96", accent: "#A78BFA", badge: "💜", strip: "#7C3AED" },
+  { bg: "#7C2D12", accent: "#FB923C", badge: "🧡", strip: "#EA580C" },
+];
+
+function getTeamConfig(index: number) {
+  const letter = String.fromCharCode(65 + index); // A, B, C...
+  if (index < BASE_TC.length) {
+    return BASE_TC[index];
+  }
+  const extra = EXTRA_COLORS[(index - BASE_TC.length) % EXTRA_COLORS.length];
+  return { ...extra, name: `Team ${letter}` };
+}
 
 export default function App() {
   const [players, setPlayers] = useState<string[]>(INITIAL_PLAYERS);
@@ -88,44 +107,71 @@ export default function App() {
     }, 100);
   };
 
-  const handleDownload = async () => {
-    if (!teamsRef.current) return;
+  const handleDownloadTeam = async (teamIndex: number) => {
+    const originalCard = document.querySelector(`[data-team-card="${teamIndex}"]`) as HTMLElement;
+    if (!originalCard) return;
     setIsDownloading(true);
     try {
-      const canvas = await html2canvas(teamsRef.current, {
+      const tc = getTeamConfig(teamIndex);
+      
+      // 1. Create off-screen wrapper
+      const wrapper = document.createElement("div");
+      wrapper.style.position = "absolute";
+      wrapper.style.left = "-9999px";
+      wrapper.style.top = "0";
+      wrapper.style.width = "400px";
+      wrapper.style.padding = "24px";
+      wrapper.style.background = DARK_BG;
+      wrapper.style.display = "flex";
+      wrapper.style.flexDirection = "column";
+      wrapper.style.borderRadius = "16px";
+      
+      // 2. Clone the card
+      const clone = originalCard.cloneNode(true) as HTMLElement;
+      clone.style.width = "100%";
+      clone.style.height = "max-content";
+      clone.style.margin = "0";
+      clone.style.animation = "none";
+      clone.style.transform = "none";
+      clone.style.overflow = "visible"; // Ensure no clipping
+      
+      // 3. Reveal hidden branding
+      const brandHeader = clone.querySelector(".card-brand-header") as HTMLElement;
+      if (brandHeader) brandHeader.style.display = "flex";
+      
+      const brandFooter = clone.querySelector(".card-brand-footer") as HTMLElement;
+      if (brandFooter) brandFooter.style.display = "block";
+      
+      // 4. Hide download button
+      const dlBtn = clone.querySelector(".card-download-btn") as HTMLElement;
+      if (dlBtn) dlBtn.style.display = "none";
+      
+      // 5. Assemble and append to DOM
+      wrapper.appendChild(clone);
+      document.body.appendChild(wrapper);
+      
+      // 6. Capture
+      const canvas = await html2canvas(wrapper, {
         backgroundColor: DARK_BG,
-        scale: 2, // Higher quality
+        scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: true,
-        windowWidth: 800, // Force a wide viewport for the capture
-        scrollX: 0,
-        scrollY: 0,
-        onclone: (clonedDoc, clonedElement) => {
-          // Force the container to be wide enough to fit everything side-by-side
-          clonedElement.style.width = "800px";
-          clonedElement.style.minWidth = "800px";
-          clonedElement.style.maxWidth = "800px";
-          clonedElement.style.padding = "32px";
-          
-          // Show hidden export elements
-          const header = clonedElement.querySelector(".export-header") as HTMLElement;
-          if (header) header.style.display = "block";
-          
-          const footer = clonedElement.querySelector(".export-footer") as HTMLElement;
-          if (footer) footer.style.display = "block";
-        }
       });
       
+      // 7. Cleanup
+      document.body.removeChild(wrapper);
+      
+      // 8. Download
       const image = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.href = image;
-      link.download = `SOT-FC-Lineup-${new Date().toISOString().slice(0, 10)}.png`;
+      link.download = `SOT-FC-${tc.name.replace(/\s/g, "-")}-${new Date().toISOString().slice(0, 10)}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch (err) {
-      console.error("Download failed:", err);
+      console.error("Team download failed:", err);
     } finally {
       setIsDownloading(false);
     }
@@ -134,7 +180,7 @@ export default function App() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: `linear-gradient(170deg, ${DARK_BG} 0%, #111827 50%, #1A1020 100%)`,
+      background: `linear-gradient(170deg, ${DARK_BG}cc 0%, #111827bb 50%, #1A1020cc 100%), url('https://res.cloudinary.com/dspngcwzj/image/upload/v1772203995/soccer-stadium-night_st5tlt.jpg') center/cover fixed no-repeat`,
       fontFamily: "'Segoe UI', 'Helvetica Neue', sans-serif",
       color: CREAM, position: "relative", overflow: "hidden",
     }}>
@@ -153,7 +199,8 @@ export default function App() {
                 src={LOGO_URL}
                 alt="SOT FC Logo"
                 style={{
-                  width: 140, height: "auto",
+                  width: 140, height: 140, objectFit: "cover",
+                  borderRadius: "50%",
                   filter: "drop-shadow(0 8px 16px rgba(0,0,0,0.4))"
                 }}
                 onError={() => setLogoError(true)}
@@ -177,7 +224,7 @@ export default function App() {
             <span style={{ color: "#94A3B8" }}>Team Shuffler</span>
           </h1>
           <p style={{ color: "#64748B", fontSize: 12, margin: "0 0 16px", letterSpacing: 1.5 }}>
-            SOCCER ON TURF • AMUWO ODOFIN • EST. 2025
+            SOCCER ON TURF • AMUWO ODOFIN • EST. 2023
           </p>
 
           {/* Instagram Link */}
@@ -255,20 +302,38 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
             <div>
               <label style={{ fontSize: 11, color: "#64748B", fontWeight: 600, display: "block", marginBottom: 8, textTransform: "uppercase", letterSpacing: 1.5 }}>Teams</label>
-              <div style={{ display: "flex", gap: 6 }}>
-                {[2, 3, 4, 5].map(n => (
-                  <button key={n}
-                    onClick={() => { setNumTeams(n); setTeams(null); setShowTeams(false); }}
-                    disabled={n > players.length}
-                    style={{
-                      width: 44, height: 44, borderRadius: 10,
-                      border: numTeams === n ? `2px solid ${CRIMSON}` : `1px solid ${ROYAL_BLUE}44`,
-                      background: numTeams === n ? `${CRIMSON}22` : "#0D1117",
-                      color: numTeams === n ? "#F87171" : (n > players.length ? "#1E293B" : "#94A3B8"),
-                      fontSize: 16, fontWeight: 700, cursor: n > players.length ? "not-allowed" : "pointer",
-                    }}
-                  >{n}</button>
-                ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button
+                  onClick={() => { setNumTeams(Math.max(2, numTeams - 1)); setTeams(null); setShowTeams(false); }}
+                  disabled={numTeams <= 2}
+                  style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    border: `1px solid ${ROYAL_BLUE}44`, background: "#0D1117",
+                    color: numTeams <= 2 ? "#1E293B" : "#94A3B8",
+                    fontSize: 20, fontWeight: 700, cursor: numTeams <= 2 ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >−</button>
+
+                <div style={{
+                  minWidth: 52, height: 44, borderRadius: 10,
+                  border: `2px solid ${CRIMSON}`, background: `${CRIMSON}22`,
+                  color: "#F87171", fontSize: 18, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "0 12px",
+                }}>{numTeams}</div>
+
+                <button
+                  onClick={() => { setNumTeams(numTeams + 1); setTeams(null); setShowTeams(false); }}
+                  disabled={numTeams >= players.length}
+                  style={{
+                    width: 44, height: 44, borderRadius: 10,
+                    border: `1px solid ${ROYAL_BLUE}44`, background: "#0D1117",
+                    color: numTeams >= players.length ? "#1E293B" : "#94A3B8",
+                    fontSize: 20, fontWeight: 700, cursor: numTeams >= players.length ? "not-allowed" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >+</button>
               </div>
             </div>
             <button onClick={handleShuffle}
@@ -306,50 +371,110 @@ export default function App() {
                 <img 
                   src={LOGO_URL} 
                   alt="SOT FC Logo" 
-                  style={{ width: "120px", height: "auto", marginBottom: "12px", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))" }} 
+                  style={{ width: "120px", height: "120px", objectFit: "cover", borderRadius: "50%", marginBottom: "12px", filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))" }} 
                   crossOrigin="anonymous"
                 />
                 <h2 style={{ fontSize: "24px", fontWeight: 800, color: CREAM, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "2px" }}>SOT FC</h2>
                 <p style={{ color: "#94A3B8", fontSize: "14px", margin: 0, letterSpacing: "1px" }}>TEAM LINEUP • {new Date().toLocaleDateString()}</p>
               </div>
 
-              <div style={{
+              <div data-teams-grid style={{
                 display: "grid",
-                gridTemplateColumns: numTeams <= 3 ? `repeat(${numTeams}, 1fr)` : "repeat(2, 1fr)",
+                gridTemplateColumns: numTeams <= 1 ? "1fr" : "repeat(2, 1fr)",
                 gap: 14,
               }}>
                 {teams.map((team, i) => {
-                  const tc = TC[i];
+                  const tc = getTeamConfig(i);
                   return (
-                    <div key={`t-${i}-${shuffleCount}`} style={{
+                    <div key={`t-${i}-${shuffleCount}`} data-team-card={i} style={{
                       background: `linear-gradient(180deg, ${tc.bg}22, ${CARD_BG})`,
                       borderRadius: 14, border: `1px solid ${tc.accent}33`, overflow: "hidden",
                       animation: showTeams ? `slideUp 0.4s ease ${i * 0.1}s both` : "none",
+                      position: "relative",
                     }}>
-                      <div style={{ height: 4, background: `linear-gradient(90deg, ${tc.strip}, ${tc.accent})` }} />
-                      <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 10 }}>
-                        <span style={{ fontSize: 18 }}>{tc.badge}</span>
+                      {/* Branded header - hidden on screen, shown in download */}
+                      <div className="card-brand-header" style={{
+                        display: "none", alignItems: "center", gap: 10,
+                        padding: "16px 16px 12px", borderBottom: `1px solid ${tc.accent}22`,
+                      }}>
+                        <img
+                          src={LOGO_URL}
+                          alt="SOT FC"
+                          style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }}
+                          crossOrigin="anonymous"
+                        />
                         <div>
-                          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: tc.accent }}>{tc.name}</h3>
-                          <span style={{ fontSize: 11, color: "#64748B" }}>{team.length} player{team.length !== 1 ? "s" : ""}</span>
+                          <span style={{ fontSize: 13, fontWeight: 800, color: CREAM, letterSpacing: 1 }}>SOT FC</span>
+                          <span style={{ fontSize: 10, color: "#64748B", display: "block", letterSpacing: 0.5 }}>
+                            SOCCER ON TURF • {new Date().toLocaleDateString()}
+                          </span>
                         </div>
                       </div>
-                      <div style={{ padding: "4px 16px 14px" }}>
+
+                      <div style={{ height: 4, background: `linear-gradient(90deg, ${tc.strip}, ${tc.accent})` }} />
+
+                      <div style={{ padding: "10px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 14 }}>{tc.badge}</span>
+                          <div>
+                            <h3 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: tc.accent, whiteSpace: "nowrap" }}>{tc.name}</h3>
+                            <span style={{ fontSize: 10, color: "#64748B" }}>{team.length} player{team.length !== 1 ? "s" : ""}</span>
+                          </div>
+                        </div>
+                        <button
+                          className="card-download-btn"
+                          onClick={() => handleDownloadTeam(i)}
+                          disabled={isDownloading}
+                          title={`Download ${tc.name}`}
+                          style={{
+                            width: 28, height: 28, borderRadius: 6,
+                            border: `1px solid ${tc.accent}44`,
+                            background: `${tc.bg}88`,
+                            color: tc.accent, cursor: "pointer",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 12, flexShrink: 0,
+                            transition: "all 0.2s ease",
+                          }}
+                          onMouseOver={(e) => {
+                            e.currentTarget.style.background = tc.accent;
+                            e.currentTarget.style.color = "#fff";
+                          }}
+                          onMouseOut={(e) => {
+                            e.currentTarget.style.background = `${tc.bg}88`;
+                            e.currentTarget.style.color = tc.accent;
+                          }}
+                        >
+                          <Download size={12} />
+                        </button>
+                      </div>
+                      <div style={{ padding: "4px 10px 8px" }}>
                         {team.map((p, j) => (
                           <div key={p} style={{
-                            display: "flex", alignItems: "center", gap: 10, padding: "9px 0",
+                            display: "flex", alignItems: "center", gap: 8, padding: "7px 0", // Reduced padding and gap
                             borderBottom: j < team.length - 1 ? `1px solid ${tc.accent}11` : "none",
                           }}>
                             <div style={{
-                              width: 26, height: 26, borderRadius: "50%",
+                              width: 20, height: 20, borderRadius: "50%", // Smaller number circle
                               background: `linear-gradient(135deg, ${tc.bg}, ${tc.accent}33)`,
                               display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 11, fontWeight: 700, color: tc.accent,
+                              fontSize: 9, fontWeight: 700, color: tc.accent, // Smaller font
                               border: `1px solid ${tc.accent}33`, flexShrink: 0,
                             }}>{j + 1}</div>
-                            <span style={{ fontSize: 14, fontWeight: 500, color: CREAM }}>{p}</span>
+                            <span style={{ 
+                              fontSize: 11, fontWeight: 500, color: CREAM, wordBreak: "break-word", lineHeight: 1.3
+                            }}>{p}</span>
                           </div>
                         ))}
+                      </div>
+
+                      {/* Branded footer - hidden on screen, shown in download */}
+                      <div className="card-brand-footer" style={{
+                        display: "none", textAlign: "center",
+                        padding: "10px 16px 14px",
+                        borderTop: `1px solid ${tc.accent}15`,
+                        fontSize: 9, color: "#475569", letterSpacing: 0.5,
+                      }}>
+                        Generated by SOT FC Team Shuffler • sot.fc
                       </div>
                     </div>
                   );
@@ -366,30 +491,13 @@ export default function App() {
                 border: `1px solid ${CRIMSON}55`, background: "transparent",
                 color: "#F87171", fontSize: 14, fontWeight: 600, cursor: "pointer",
               }}>🔄 Reshuffle</button>
-
-              <button onClick={handleDownload} disabled={isDownloading} style={{
-                padding: "10px 28px", borderRadius: 10,
-                border: "none", background: `linear-gradient(135deg, ${ROYAL_BLUE}, ${NAVY})`,
-                color: "white", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 8,
-                boxShadow: "0 4px 12px rgba(43,76,140,0.3)"
-              }}>
-                {isDownloading ? (
-                  <>⏳ Generating...</>
-                ) : (
-                  <>
-                    <Download size={16} />
-                    Download Lineup
-                  </>
-                )}
-              </button>
             </div>
           </div>
         )}
 
         <div style={{ textAlign: "center", marginTop: 40, padding: "20px 0", borderTop: `1px solid ${ROYAL_BLUE}22` }}>
-          <p style={{ color: "#334155", fontSize: 11, margin: 0, letterSpacing: 0.5 }}>
-            SOT FC Team Shuffler • Soccer On Turf, Amuwo Odofin • Built by David Vanteko
+          <p style={{ color: "white", fontSize: 11, margin: 0, letterSpacing: 0.5 }}>
+            SOT FC Team Shuffler • Soccer On Turf, Amuwo Odofin • Built by Tieko Media Limited
           </p>
         </div>
       </div>
